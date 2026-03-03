@@ -1,0 +1,37 @@
+-- For bindless resources: --
+
+Editing project settings only changes the shader model for FUTURE hlsl files. IT DOES NOT CHANGE THE SHADER MODELS OF EXISTING FILES!
+Thus, need to set the shader model to 6.6 for each existing shader manually!!!
+
+When the shaders each have a different model assigned to them, the pipeline state will appear null, coupled with this error under "Output":
+D3D12 ERROR: ID3D12Device::CreateGraphicsPipelineState: Graphics pipeline state mixes shader model 6.0 or above with 5.1 or below. [ STATE_CREATION ERROR #1046: CREATEGRAPHICSPIPELINESTATE_SHADER_MODEL_MISMATCH]
+
+
+-- Old Bindless --
+
+/* Old Bindless
+		// Define a range of CBV's (constant buffer views) for VERTEX SHADER
+		D3D12_DESCRIPTOR_RANGE cbvRangeVS = {};
+		cbvRangeVS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		cbvRangeVS.NumDescriptors = 1;
+		cbvRangeVS.BaseShaderRegister = 0;
+		cbvRangeVS.RegisterSpace = 0;
+		cbvRangeVS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		// Define a range of CBV's (constant buffer views) for PIXEL SHADER
+		D3D12_DESCRIPTOR_RANGE cbvRangePS = {};
+		cbvRangePS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+		cbvRangePS.NumDescriptors = 1;
+		cbvRangePS.BaseShaderRegister = 0;
+		cbvRangePS.RegisterSpace = 0;
+		cbvRangePS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		
+		// Define root parameter to access an unbounded space for TEXTURES in PIXEL SHADER
+		D3D12_DESCRIPTOR_RANGE bindlessRange{};
+		bindlessRange.BaseShaderRegister = 0; // Matches t0 in shader
+		bindlessRange.RegisterSpace = 0; // Matches space0 in shader
+		bindlessRange.NumDescriptors = -1; // All (or Graphics::MaxTextureDescriptors)
+		bindlessRange.OffsetInDescriptorsFromTableStart = 0;
+		bindlessRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		*/

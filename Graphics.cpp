@@ -43,6 +43,7 @@ namespace Graphics
 		D3D12_RANGE range{ 0,0 };
 
 		unsigned int srvDescriptorOffset = MaxConstantBuffers; // Assume SRVs start after CBVs
+
 		// Texture resources we need to keep alive
 		std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> textures;
 
@@ -525,6 +526,11 @@ Microsoft::WRL::ComPtr <ID3D12Resource > Graphics::CreateStaticBuffer(
 // --------------------------------------------------------
 unsigned int Graphics::LoadTexture(const wchar_t* file, bool generateMips) 
 {
+	// We are uploading the SRV data to a CBV_SRV_UAV ring buffer
+	// Right now, the entire buffer is a ring buffer - we want to segment the buffer such that all our SRVs are not overwritten
+	// | CBV - Ring and rewritten | | SRV- Not overwritable| -> Assuming SRVs begin after all constant buffers
+	// The srvDescriptorOffset marks the offset from the beginning to the end of the space reserved for SRVs
+
 	// Helper function from DXTK for uploading a resource
 	// (like a texture) to the appropriate GPU memory
 	DirectX::ResourceUploadBatch upload(Device.Get());
@@ -554,6 +560,8 @@ unsigned int Graphics::LoadTexture(const wchar_t* file, bool generateMips)
 	// Send back the index of the descriptor
 	return srvIndex;
 }
+
+
 
 
 // --------------------------------------------------------
@@ -774,3 +782,35 @@ D3D12_GPU_DESCRIPTOR_HANDLE Graphics::FillNextConstantBufferAndGetGPUDescriptorH
 	}
 }
 
+
+// --- Reserve space for SRVs or UAVs on CBV/SRV/UAV Heap ---
+// SRVs are stored after the ring buffer space for constants. The ring buffer space is constantly being overwritten
+// For bindless vertex buffers, I want to arrange all my vertices as SRVs that follow the constant buffer space.
+// |CBV|VB - SRV| Textures SRV |
+// Textures are created before vertex buffers. I want to create a way to reserve space for vertex buffers, before textures are loaded.
+// Cases might occur where only one handle needs to be recorded - 0 is passed in as a parameter for the other. 
+// Thus, if either handle exists and is edited, move the texture srv offset as a way to reserve the space!
+void Graphics::ReserveDescriptorHeapSlot(D3D12_CPU_DESCRIPTOR_HANDLE* reservedCPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* reservedGPUHandle) 
+{
+	
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = CBVSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = CBVSRVDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+
+	cpuHandle.ptr += (SIZE_T)srvDescriptorOffset * cbvSrvDescriptorHeapIncrementSize;
+	gpuHandle.ptr += (SIZE_T)srvDescriptorOffset * cbvSrvDescriptorHeapIncrementSize;
+
+	if (reservedCPUHandle) { *reservedCPUHandle = cpuHandle; }
+	if (reservedGPUHandle) { *reservedGPUHandle = gpuHandle; }
+
+	if (reservedCPUHandle || reservedGPUHandle) { srvDescriptorOffset++; }
+
+}
+
+// --- To return the index of the descriptors in the CBV/SRV/UAV buffer ---
+// Data stored in the CBV/SRV/UAV buffer are stored in sized chunks of data (GetDescriptorHandleIncrementSize)
+// Thus to index -> Find the offset from the beginning, then divide by the sized chunk
+unsigned int Graphics::GetDescriptorIndex(D3D12_GPU_DESCRIPTOR_HANDLE handle) 
+{
+	return (unsigned int)((handle.ptr - CBVSRVDescriptorHeap->GetGPUDescriptorHandleForHeapStart().ptr) / 
+		Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV));
+}

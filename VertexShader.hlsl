@@ -1,6 +1,15 @@
 #include "ShaderInclude.hlsli"
 
-// Struct representing a single vertex worth of data
+cbuffer BindlessData : register(b0)
+{
+    uint vsVertexBufferIndex;
+    uint vsConstAllIndex;
+    uint vsConstEachIndex;
+    uint psConstAllIndex;
+    uint psConstEachIndex;
+}
+
+/* Struct representing a single vertex worth of data -- NOT IN BINDLESS
 // - This should match the vertex definition in our C++ code
 // - By "match", I mean the size, order and number of members
 // - The name of the struct itself is unimportant, but should be descriptive
@@ -17,14 +26,27 @@ struct VertexShaderInput
 	float3 Normal			: NORMAL;       // Normal
     float3 Tangent			: TANGENT;		// Tangent
 };
+*/
 
-cbuffer VSConstants : register(b0)
+struct VSConstantsAll
+{
+    float4x4 view;
+    float4x4 proj;
+};
+
+struct VSConstantsEach
 {
     float4x4 world;
     float4x4 worldInv;
-    float4x4 view;
-    float4x4 proj;
-}
+};
+
+struct Vertex
+{
+    float3 Position; // The local position of the vertex
+    float2 UV; // The UV Texture Coordinates of the vertex (0-1)
+    float3 Normal;
+    float3 Tangent;
+};
 
 // --------------------------------------------------------
 // The entry point (main method) for our vertex shader
@@ -33,8 +55,14 @@ cbuffer VSConstants : register(b0)
 // - Output is a single struct of data to pass down the pipeline
 // - Named "main" because that's the default the shader compiler looks for
 // --------------------------------------------------------
-VertexToPixel main( VertexShaderInput input )
+VertexToPixel main(uint vertexID : SV_VertexID )
 {
+    ConstantBuffer<VSConstantsAll> vsAllData = ResourceDescriptorHeap[vsConstAllIndex];
+    ConstantBuffer<VSConstantsEach> vsEachData = ResourceDescriptorHeap[vsConstEachIndex];
+    StructuredBuffer<Vertex> vbBuffer = ResourceDescriptorHeap[vsVertexBufferIndex];
+    
+    Vertex v = vbBuffer[vertexID];
+	
 	// Set up output struct
     VertexToPixel output;
 
@@ -46,12 +74,12 @@ VertexToPixel main( VertexShaderInput input )
 	// - Each of these components is then automatically divided by the W component, 
 	//   which we're leaving at 1.0 for now (this is more useful when dealing with 
 	//   a perspective projection matrix, which we'll get to in the future).
-    float4x4 wvp = mul(proj, mul(view, world));
-    output.screenPosition = mul(wvp, float4(input.localPosition, 1.0f));
-    output.normal = mul((float3x3) worldInv, input.Normal);
-    output.tangent = mul((float3x3) world, input.Normal);
-    output.worldPos = mul(world, float4(input.localPosition, 1.0f)).xyz;
-    output.uv = input.UV;
+    float4x4 wvp = mul(vsAllData.proj, mul(vsAllData.view, vsEachData.world));
+    output.screenPosition = mul(wvp, float4(v.Position, 1.0f));
+    output.normal = mul((float3x3) vsEachData.worldInv, v.Normal);
+    output.tangent = mul((float3x3) vsEachData.world, v.Normal);
+    output.worldPos = mul(vsEachData.world, float4(v.Position, 1.0f)).xyz;
+    output.uv = v.UV;
 	
 
 	// Pass the color through 

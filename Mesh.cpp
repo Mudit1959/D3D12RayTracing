@@ -1,14 +1,14 @@
 #include "Mesh.h"
 
 
-Mesh::Mesh(const char* n, Vertex* v, int vCount, unsigned int* i, int iCount)
+Mesh::Mesh(const char* n, Vertex* v, int vCount, unsigned int* i, int iCount) : vbView{}, ibView {}
 {
 	name = n;
 	
 	Mesh::CreateBuffers(v, vCount, i, iCount);
 }
 
-Mesh::Mesh(const char* n, const char* objFilePath)
+Mesh::Mesh(const char* n, const char* objFilePath) : vbView{}, ibView{}, vbGPUDescriptorHandle{}
 {
 	name = n;
 
@@ -291,6 +291,22 @@ void Mesh::CreateBuffers(Vertex* v, int vCount, unsigned int* i, int iCount)
 	ibView.Format = DXGI_FORMAT_R32_UINT;
 	ibView.SizeInBytes = (UINT)(sizeof(unsigned int) * iCount);
 	ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+
+	// -- Bindless --
+	//Set up an SRV for the vertices
+	D3D12_CPU_DESCRIPTOR_HANDLE vbCPUHandle;
+	Graphics::ReserveDescriptorHeapSlot(&vbCPUHandle, &vbGPUDescriptorHandle);
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Format = DXGI_FORMAT_UNKNOWN; // No format since vertices are structs
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER; // Dimension buffer - ?
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING; // ?
+	srvDesc.Buffer.FirstElement = 0; // ?
+	srvDesc.Buffer.NumElements = (unsigned int)vertexCount; // Number of vertices
+	srvDesc.Buffer.StructureByteStride = sizeof(Vertex); // Size of one vertex
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE; // ?
+	Graphics::Device->CreateShaderResourceView(vertexBuffer.Get(), &srvDesc, vbCPUHandle);
+
 }
 
 
@@ -299,6 +315,7 @@ Mesh::~Mesh() {}
 const char* Mesh::GetName() { return name; }
 Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetVertexBuffer() { return vertexBuffer; };
 Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetIndexBuffer() { return indexBuffer; };
+D3D12_GPU_DESCRIPTOR_HANDLE Mesh::GetVertexBufferGPUDescriptorHandle() { return vbGPUDescriptorHandle;  }
 int Mesh::GetIndexCount() { return indexCount; }
 int Mesh::GetVertexCount() { return vertexCount; }
 D3D12_VERTEX_BUFFER_VIEW Mesh::GetVBView() { return vbView; }

@@ -42,6 +42,8 @@ public:
 	Microsoft::WRL::ComPtr<ID3D12Resource> GetVertexBuffer();
 	Microsoft::WRL::ComPtr<ID3D12Resource> GetIndexBuffer();
 
+	D3D12_GPU_DESCRIPTOR_HANDLE GetVertexBufferGPUDescriptorHandle();
+
 	D3D12_VERTEX_BUFFER_VIEW GetVBView();
 	D3D12_INDEX_BUFFER_VIEW GetIBView();
 	
@@ -57,6 +59,10 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer; // Contains all the indices - drawn in groups of 3 (triangle drawing mode)
 	D3D12_VERTEX_BUFFER_VIEW vbView;
 	D3D12_INDEX_BUFFER_VIEW ibView;
+
+	//Bindless
+	D3D12_GPU_DESCRIPTOR_HANDLE vbGPUDescriptorHandle;
+
 	const char* name;
 	int indexCount, vertexCount;
 };

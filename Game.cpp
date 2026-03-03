@@ -19,9 +19,9 @@
 using namespace DirectX;
 
 std::vector<std::shared_ptr<Entity>> entities;
-std::shared_ptr<Material> wood, diamond, metal46, metal49;
+std::shared_ptr<Material> wood, onyx, diamond, metal46, metal49;
 std::shared_ptr<Camera> camera;
-unsigned int lightCount = 10;
+unsigned int lightCount = 0;
 
 float RandomRange(float min, float max) 
 {
@@ -74,7 +74,7 @@ void Game::CreateRootSigAndPipelineState()
 		D3DReadFileToBlob(
 			FixPath(L"PixelShader.cso").c_str(), pixelShaderByteCode.GetAddressOf());
 	}
-	// Input layout
+	/* Input layout - Not required in full bindless
 	const unsigned int inputElementCount = 4;
 	D3D12_INPUT_ELEMENT_DESC inputElements[inputElementCount] = {};
 	{
@@ -97,57 +97,21 @@ void Game::CreateRootSigAndPipelineState()
 		inputElements[3].Format = DXGI_FORMAT_R32G32B32_FLOAT; // R32 G32 B32 = float3
 		inputElements[3].SemanticName = "TANGENT";
 		inputElements[3].SemanticIndex = 0; // This is the first TANGENT semantic
-	}
+	}*/
+
 	// Root Signature
 	{
-		// Define a range of CBV's (constant buffer views) for VERTEX SHADER
-		D3D12_DESCRIPTOR_RANGE cbvRangeVS = {};
-		cbvRangeVS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-		cbvRangeVS.NumDescriptors = 1;
-		cbvRangeVS.BaseShaderRegister = 0;
-		cbvRangeVS.RegisterSpace = 0;
-		cbvRangeVS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-		// Define a range of CBV's (constant buffer views) for PIXEL SHADER
-		D3D12_DESCRIPTOR_RANGE cbvRangePS = {};
-		cbvRangePS.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-		cbvRangePS.NumDescriptors = 1;
-		cbvRangePS.BaseShaderRegister = 0;
-		cbvRangePS.RegisterSpace = 0;
-		cbvRangePS.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-		/* Old Bindless
-		// Define root parameter to access an unbounded space for TEXTURES in PIXEL SHADER
-		D3D12_DESCRIPTOR_RANGE bindlessRange{};
-		bindlessRange.BaseShaderRegister = 0; // Matches t0 in shader
-		bindlessRange.RegisterSpace = 0; // Matches space0 in shader
-		bindlessRange.NumDescriptors = -1; // All (or Graphics::MaxTextureDescriptors)
-		bindlessRange.OffsetInDescriptorsFromTableStart = 0;
-		bindlessRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		*/
+		
 
 
-		D3D12_ROOT_PARAMETER rootParams[2] = {};
+		D3D12_ROOT_PARAMETER rootParams[1] = {};
 
-
-		// Define the pointer to a descriptor table for the VERTEX SHADER
-		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-		rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
-		rootParams[0].DescriptorTable.pDescriptorRanges = &cbvRangeVS;
-
-		// Define the pointer to a descriptor table for the PIXEL SHADER
-		rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		rootParams[1].DescriptorTable.NumDescriptorRanges = 1;
-		rootParams[1].DescriptorTable.pDescriptorRanges = &cbvRangePS;
-
-		/* Old Bindless - Define the pointer to a descriptor table for TEXTURES in the PIXEL SHADER
-		rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootParams[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		rootParams[2].DescriptorTable.NumDescriptorRanges = 1;
-		rootParams[2].DescriptorTable.pDescriptorRanges = &bindlessRange;
-		*/
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // Needs to be accessible by vertex and pixel
+		rootParams[0].Constants.Num32BitValues = sizeof(DrawingIndices) / sizeof(unsigned int); // How many indices are stored in the struct?
+		rootParams[0].Constants.RegisterSpace = 0; // ??? - 
+		rootParams[0].Constants.ShaderRegister = 0; // ??? - 
+		
 
 		// Create a single static sampler (available to all pixel shaders)
 		D3D12_STATIC_SAMPLER_DESC anisoWrap = {};
@@ -164,7 +128,7 @@ void Game::CreateRootSigAndPipelineState()
 		// Describe the full root signature
 		D3D12_ROOT_SIGNATURE_DESC rootSig = {};
 		rootSig.Flags =
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
+			D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
 		rootSig.NumParameters = ARRAYSIZE(rootParams);
 		rootSig.pParameters = rootParams;
 		rootSig.NumStaticSamplers = ARRAYSIZE(samplers);
@@ -183,6 +147,8 @@ void Game::CreateRootSigAndPipelineState()
 		{
 			OutputDebugString((wchar_t*)errors -> GetBufferPointer());
 		}
+
+
 		// Actually create the root sig
 		Graphics::Device -> CreateRootSignature(
 			0,
@@ -194,9 +160,11 @@ void Game::CreateRootSigAndPipelineState()
 	{
 		// Describe the pipeline state
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		// -- Input assembler related ---
+		/* --Input assembler related-- -
+		* Not required in full bindless!
 		psoDesc.InputLayout.NumElements = inputElementCount;
-		psoDesc.InputLayout.pInputElementDescs = inputElements;
+		psoDesc.InputLayout.pInputElementDescs = inputElements;*/
+
 		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 		// Overall primitive topology type (triangle, line, etc.) is set here
 		// IASetPrimTop() is still used to set list/strip/adj options
@@ -273,7 +241,7 @@ void Game::CreateGeometry()
 
 	entities.push_back(std::make_shared<Entity>(helix, wood));
 	entities.push_back(std::make_shared<Entity>(sphere, metal46));
-	entities.push_back(std::make_shared<Entity>(torus, diamond));
+	entities.push_back(std::make_shared<Entity>(torus, onyx));
 
 	entities[0]->GetTransform()->SetPosition(0, 0, 0);
 
@@ -288,8 +256,11 @@ void Game::CreateMaterials()
 	unsigned int woodAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/wood_albedo.png").c_str());
 	unsigned int woodNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/wood_normal.png").c_str());
 	unsigned int woodRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/wood_roughness.png").c_str());
-	
 
+	unsigned int onyxAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/onyx_albedo.png").c_str());
+	unsigned int onyxNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/onyx_normal.png").c_str());
+	unsigned int onyxRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/onyx_roughness.png").c_str());
+	
 	unsigned int diamondAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/diamond_albedo.png").c_str());
 	unsigned int diamondNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/diamond_normal.png").c_str());
 	unsigned int diamondRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/diamond_roughness.png").c_str());
@@ -309,6 +280,11 @@ void Game::CreateMaterials()
 	wood->SetAlbedoIndex(woodAlbedo);
 	wood->SetNormalMapIndex(woodNormal);
 	wood->SetRoughnessIndex(woodRoughness);
+
+	onyx = std::make_shared<Material>(pipelineState, DirectX::XMFLOAT3(1, 1, 1));
+	onyx->SetAlbedoIndex(onyxAlbedo);
+	onyx->SetNormalMapIndex(onyxNormal);
+	onyx->SetRoughnessIndex(onyxRoughness);
 
 	diamond = std::make_shared<Material>(pipelineState, DirectX::XMFLOAT3(1, 1, 1));
 	diamond->SetAlbedoIndex(diamondAlbedo);
@@ -333,31 +309,35 @@ void Game::CreateMaterials()
 void Game::CreateLights() 
 {
 	Light redDir = {};
-	redDir.Direction = DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
+	redDir.Direction = DirectX::XMFLOAT3(0.0f, -1.0f, 0.0f);
 	redDir.Color = DirectX::XMFLOAT3(1.0f, 0.0f, 0.0f);
+	redDir.Intensity = .3f;
 	redDir.Type = LIGHT_TYPE_DIRECTIONAL;
 
 	Light whiteDir = {};
 	whiteDir.Color = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f);
 	whiteDir.Direction = DirectX::XMFLOAT3(0.0f, 0.0f, 1.0f);
+	whiteDir.Intensity = .1f;
 	whiteDir.Type = LIGHT_TYPE_DIRECTIONAL;
 
 	lights.push_back(redDir);
-	lights.push_back(whiteDir);
+	//lights.push_back(whiteDir);
+	lightCount += 1;
 
 	
-
 	for (int i = 0; i < 8; i++) 
 	{
 		Light point = {};
 		point.Color = DirectX::XMFLOAT3(RandomRange(0.0f, 1.0f), RandomRange(0.0f, 1.0f), RandomRange(0.0f, 1.0f));
-		point.Position = DirectX::XMFLOAT3(RandomRange(-5.0f, 5.0f), RandomRange(-5.0f, 5.0f), RandomRange(-5.0f, 5.0f));
+		point.Position = DirectX::XMFLOAT3(RandomRange(-3.5f, 3.5f), RandomRange(-2.0f, 2.0f), RandomRange(-1.0f, 1.0f));
 		point.Intensity = RandomRange(0.0f, 2.0f);
-		point.Range = RandomRange(0.5f, 8.0f);
+		point.Range = RandomRange(0.5f, 3.0f);
 		point.Type = LIGHT_TYPE_POINT;
 
 		lights.push_back(point);
+		lightCount++;
 	}
+	
 
 	lights.resize(MAX_LIGHTS);
 }
@@ -409,7 +389,7 @@ void Game::Update(float deltaTime, float totalTime)
 	//"auto& to meaningfully modify items in a sequence", such as a vector -> https://stackoverflow.com/questions/29859796/c-auto-vs-auto
 	for (auto& e : entities) 
 	{
-		e->GetTransform()->Rotate(0, deltaTime, 0);
+		e->GetTransform()->Rotate(0, deltaTime*0.5f, 0);
 	}
 
 	
@@ -454,18 +434,18 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Rendering here!
 	{
 		// Set overall pipeline state -> prone to change depending on object
-		Graphics::CommandList -> SetPipelineState(pipelineState.Get());
+		Graphics::CommandList->SetPipelineState(pipelineState.Get());
 
 		// Set the CBV/SRV Descriptor Heap -> must happen before root signature if using bindless ResourceDescriptorHeap!
 		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
 
 		// Root sig (must happen before root descriptor table)
-		Graphics::CommandList -> SetGraphicsRootSignature(rootSignature.Get());
+		Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
 
-		
+
 
 		/* Old Bindless
-		// Now bind the beginning of all the SRVs using a root descriptor table - partial binding 
+		// Now bind the beginning of all the SRVs using a root descriptor table - partial binding
 		// Must happen after root signature has been set
 		// Navigate to start of the CBV/SRV buffer -> skip past reserved space for constants to get to textures
 		D3D12_GPU_DESCRIPTOR_HANDLE startInGPU = Graphics::CBVSRVDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
@@ -473,54 +453,102 @@ void Game::Draw(float deltaTime, float totalTime)
 		startInGPU.ptr += (Graphics::MaxConstantBuffers * inc);
 		Graphics::CommandList->SetGraphicsRootDescriptorTable(2, startInGPU);
 		*/
-		
-		// Set up other commands for rendering
-		Graphics::CommandList -> OMSetRenderTargets(
-		1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true , &Graphics::DSVHandle);
 
-		
-		Graphics::CommandList -> RSSetViewports(1, &viewport);
-		Graphics::CommandList -> RSSetScissorRects(1, &scissorRect);
+		// Set up other commands for rendering
+		Graphics::CommandList->OMSetRenderTargets(
+			1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
+
+
+		Graphics::CommandList->RSSetViewports(1, &viewport);
+		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
 		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		for (auto& e : entities) 
+		DrawingIndices drawData{};
+
+		// -- Set Common VS Constants --
+		// Vertex shader constants to be shared by all 
 		{
-			VSConstants vsData = {};
-			vsData.world = e->GetTransform()->GetWorldMatrix();
-			vsData.worldInv = e->GetTransform()->GetWorldInverseTransposeMatrix();
+			VSConstantsAll vsData = {};
 			vsData.view = camera->GetView();
 			vsData.proj = camera->GetProj();
 
 			D3D12_GPU_DESCRIPTOR_HANDLE vsDataInCBHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
-				(void*)&vsData, sizeof(VSConstants)
+				(void*)&vsData, sizeof(VSConstantsAll)
 			);
 
-			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, vsDataInCBHandle);
+			drawData.vsConstAllIndex = Graphics::GetDescriptorIndex(vsDataInCBHandle);
+		}
+		// -> Curly braces used to define scopes allowing us to use the same variable name without causing errors!
 
-			PSConstants psData = {};
-			psData.albedoIndex = e->GetMaterial()->GetAlbedoIndex();
-			psData.normalIndex = e->GetMaterial()->GetNormalMapIndex();
-			psData.roughnessIndex = e->GetMaterial()->GetRoughnessIndex();
-			psData.metalnessIndex = e->GetMaterial()->GetMetalnessIndex();
-			psData.UVOffset = e->GetMaterial()->GetOffset();
-			psData.UVScale = e->GetMaterial()->GetScale();
+		// -- Set Common PS Constants -- 
+		{
+			PSConstantsAll psData = {};
 			psData.cameraWorldPos = camera->GetPos();
 			psData.lightCount = lightCount;
 			memcpy(&psData.lights, &lights[0], sizeof(Light) * MAX_LIGHTS);
 
 			D3D12_GPU_DESCRIPTOR_HANDLE psDataInCBHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
-				(void*)&psData, sizeof(PSConstants)
+				(void*)&psData, sizeof(PSConstantsAll)
 			);
 
-			Graphics::CommandList->SetGraphicsRootDescriptorTable(1, psDataInCBHandle);
+			drawData.psConstAllIndex = Graphics::GetDescriptorIndex(psDataInCBHandle);
+		}
 
+		for (auto& e : entities) 
+		{
 			std::shared_ptr<Mesh> mesh = e->GetMesh();
-			D3D12_VERTEX_BUFFER_VIEW vbView = mesh->GetVBView();
-			D3D12_INDEX_BUFFER_VIEW ibView = mesh->GetIBView();
 
+			// -- Set Pipeline State --
+			// Each entity may have a different pipeline state -> Set it!
+			// Pipeline state is accessed through an entity's material
 			Graphics::CommandList->SetPipelineState(e->GetMaterial()->GetPipelineState().Get());
-			Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
+
+			// -- Set VS Constants for this entity -- 
+			{
+
+				VSConstantsEach vsData = {};
+				vsData.world = e->GetTransform()->GetWorldMatrix();
+				vsData.worldInv = e->GetTransform()->GetWorldInverseTransposeMatrix();
+
+
+				D3D12_GPU_DESCRIPTOR_HANDLE vsDataInCBHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
+					(void*)&vsData, sizeof(VSConstantsEach)
+				);
+
+				drawData.vsConstEachIndex = Graphics::GetDescriptorIndex(vsDataInCBHandle);
+			}
+
+			// -- Provide Vertex Buffer Index for this entity--
+			drawData.vsVertexBufferIndex = Graphics::GetDescriptorIndex(mesh->GetVertexBufferGPUDescriptorHandle());
+			
+			{
+				PSConstantsEach psData = {};
+				psData.albedoIndex = e->GetMaterial()->GetAlbedoIndex();
+				psData.normalIndex = e->GetMaterial()->GetNormalMapIndex();
+				psData.roughnessIndex = e->GetMaterial()->GetRoughnessIndex();
+				psData.metalnessIndex = e->GetMaterial()->GetMetalnessIndex();
+				psData.UVOffset = e->GetMaterial()->GetOffset();
+				psData.UVScale = e->GetMaterial()->GetScale();
+				
+				D3D12_GPU_DESCRIPTOR_HANDLE psDataInCBHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
+					(void*)&psData, sizeof(PSConstantsEach)
+				);
+
+				drawData.psConstEachIndex = Graphics::GetDescriptorIndex(psDataInCBHandle);
+			}
+
+			// -- Set the root parameters! --
+			Graphics::CommandList->SetGraphicsRoot32BitConstants(
+				0,
+				sizeof(DrawingIndices) / sizeof(unsigned int),
+				&drawData,
+				0);
+			
+			//No need for vertex buffer view anymore 
+			
+			D3D12_INDEX_BUFFER_VIEW ibView = mesh->GetIBView();
 			Graphics::CommandList->IASetIndexBuffer(&ibView);
+			
 
 			Graphics::CommandList->DrawIndexedInstanced((UINT)mesh->GetIndexCount(), 1, 0, 0, 0);
 		}

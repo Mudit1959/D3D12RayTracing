@@ -1,8 +1,17 @@
 #include "ShaderInclude.hlsli"
 
-//Texture2D AllTextures[ ] : register(t0, space0);
+cbuffer BindlessData : register(b0)
+{
+    uint vsVertexBufferIndex;
+    uint vsConstAllIndex;
+    uint vsConstEachIndex;
+    uint psConstAllIndex;
+    uint psConstEachIndex;
+}
 
-cbuffer PSConstants : register(b0)
+//Texture2D AllTextures[ ] : register(t0, space0); - Old Bindless
+
+struct PSConstantsEach
 {
     unsigned int albedoIndex;
     unsigned int normalIndex;
@@ -11,12 +20,16 @@ cbuffer PSConstants : register(b0)
 
     float2 UVScale;
     float2 UVOffset;
+};
+
+struct PSConstantsAll
+{
 
     float3 cameraWorldPos;
     int numLights;
 
     Light lights[MAX_LIGHTS];
-}
+};
 
 SamplerState BasicSampler : register(s0);
 
@@ -31,16 +44,16 @@ SamplerState BasicSampler : register(s0);
 // --------------------------------------------------------
 float4 main(VertexToPixel input) : SV_TARGET
 {
-    Texture2D Albedo = ResourceDescriptorHeap[albedoIndex];
+    ConstantBuffer<PSConstantsAll> psAll = ResourceDescriptorHeap[psConstAllIndex];
+    ConstantBuffer<PSConstantsEach> psEach = ResourceDescriptorHeap[psConstEachIndex];
     
-    /*
-    Texture2D Albedo = AllTextures[albedoIndex];
-    Texture2D NormalMap = AllTextures[NormalMap];
-    Texture2D RoughnessMap = AllTextures[roughnessIndex];
-    Texture2D MetalnessMap = AllTextures[metalnessIndex];
+    Texture2D Albedo = ResourceDescriptorHeap[psEach.albedoIndex];
+    Texture2D NormalMap = ResourceDescriptorHeap[psEach.normalIndex];
+    Texture2D RoughnessMap = ResourceDescriptorHeap[psEach.roughnessIndex];
+    Texture2D MetalnessMap = ResourceDescriptorHeap[psEach.metalnessIndex];
     
     // -- RENORMALIZING AND SCALING NORMALS AND UV --
-    input.uv = input.uv * scale + offset;
+    input.uv = input.uv * psEach.UVScale + psEach.UVOffset;
     input.normal = normalize(input.normal);
     
     float3 total = float3(0.0f, 0.0f, 0.0f);
@@ -59,6 +72,7 @@ float4 main(VertexToPixel input) : SV_TARGET
     // -- SAMPLE NORMAL MAP, CHANGE NORMALS TO ACCOUNT FOR SURFACE UNEVENENESS -- 
     float3 finalNormal;
     finalNormal = normalize(NormalMap.Sample(BasicSampler, input.uv).xyz * 2.0f - 1.0f); // First unpack the normal map's normal
+    //return float4(finalNormal, 1.0f);
     
     float3 T, B, N;
     N = input.normal;
@@ -71,16 +85,16 @@ float4 main(VertexToPixel input) : SV_TARGET
     
     // -- OTHER VARIABLES
     float3 toCamera, halfVector, toLight, add;
-    toCamera = normalize(cameraWorldPos - input.worldPos);
+    toCamera = normalize(psAll.cameraWorldPos - input.worldPos);
     
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < psAll.numLights; i++)
     {
-        
-        switch (lights[i].Type)
+        Light light = psAll.lights[i];
+        switch (light.Type)
         {
             
             case LIGHT_TYPE_DIRECTIONAL: //0
-                toLight = normalize(-lights[i].Direction);
+                toLight = normalize(-light.Direction);
                 halfVector = (toLight + toCamera) / 2;
                 
                 add = DiffuseEnergyConserve(DiffuseLambertPBR(input.normal, toLight, surfaceColor),
@@ -88,14 +102,14 @@ float4 main(VertexToPixel input) : SV_TARGET
                                                 metalness);
                 add += CookTorranceBRDF(toLight, toCamera, halfVector, input.normal, roughness, f0);
             
-                add *= lights[i].Color * lights[i].Intensity;
+                add *= light.Color * light.Intensity;
                 
                 total += add;
                 break;
             
             case LIGHT_TYPE_POINT: //1
                 // Point lights emit in all directions, so we will depend on the range and position of the light
-                toLight = normalize(lights[i].Position - input.worldPos);
+                toLight = normalize(light.Position - input.worldPos);
                 halfVector = normalize(toLight + toCamera) / 2;
                 
                 add = DiffuseEnergyConserve(DiffuseLambertPBR(input.normal, toLight, surfaceColor),
@@ -103,8 +117,8 @@ float4 main(VertexToPixel input) : SV_TARGET
                                                 metalness);
                 add += CookTorranceBRDF(toLight, toCamera, halfVector, input.normal, roughness, f0);
             
-                add *= Attenuate(lights[i], input.worldPos);
-                add *= lights[i].Color * lights[i].Intensity;
+                add *= Attenuate(light, input.worldPos);
+                add *= light.Color * light.Intensity;
             
                 total += add;
             
@@ -112,7 +126,7 @@ float4 main(VertexToPixel input) : SV_TARGET
             
             case LIGHT_TYPE_SPOT: //2
                 // Spot lights emit light in a conical manner, so we will depend on range, position, and angles!
-                toLight = normalize(lights[i].Position - input.worldPos);
+                toLight = normalize(light.Position - input.worldPos);
                 halfVector = normalize(toLight + toCamera) / 2;
             
                 add = DiffuseEnergyConserve(DiffuseLambertPBR(input.normal, toLight, surfaceColor),
@@ -122,16 +136,16 @@ float4 main(VertexToPixel input) : SV_TARGET
             
                 
             
-                float surfaceCos = saturate(dot(-toLight, lights[i].Direction));
-                float cosOuter = cos(lights[i].SpotOuterAngle);
-                float cosInner = cos(lights[i].SpotInnerAngle);
+                float surfaceCos = saturate(dot(-toLight, light.Direction));
+                float cosOuter = cos(light.SpotOuterAngle);
+                float cosInner = cos(light.SpotInnerAngle);
                 float fallOff = cosOuter - cosInner;
             
                 float spotTerm = saturate((cosOuter - surfaceCos) / fallOff);
                 add *= spotTerm;
                 
-                add *= Attenuate(lights[i], input.worldPos);
-                add *= lights[i].Color * lights[i].Intensity;
+                add *= Attenuate(light, input.worldPos);
+                add *= light.Color * light.Intensity;
                 
                 total += add;
                 
@@ -142,9 +156,5 @@ float4 main(VertexToPixel input) : SV_TARGET
     
     total = pow(total, 1.0f / 2.2f); // Gamma correct final color
     return float4(total, 1.0f);
-    */
     
-    
-    
-    return Albedo.Sample(BasicSampler, input.uv);
 }

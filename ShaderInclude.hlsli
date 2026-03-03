@@ -1,4 +1,7 @@
-// Struct representing the data we're sending down the pipeline
+
+
+
+// -- Struct representing the data we're sending down the pipeline from VS to PS --
 // - Should match our pixel shader's input (hence the name: Vertex to Pixel)
 // - At a minimum, we need a piece of data defined tagged as SV_POSITION
 // - The name of the struct itself is unimportant, but should be descriptive

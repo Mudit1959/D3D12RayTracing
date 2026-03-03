@@ -104,4 +104,8 @@
     </None>
     <None Include="packages.config" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="Insights.txt" />
+    <Text Include="Bindless without Constant &amp; Vertex Buffers.txt" />
+  </ItemGroup>
 </Project>
