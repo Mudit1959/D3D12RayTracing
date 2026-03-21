@@ -7,6 +7,7 @@ class Entity
 {
 public:
 	Entity(std::shared_ptr<Mesh> mesh, std::shared_ptr<Material> material);
+	Entity(std::shared_ptr<Mesh> inMesh);
 	std::shared_ptr<Mesh> GetMesh();
 	std::shared_ptr<Material> GetMaterial();
 	void SetMaterial(std::shared_ptr<Material> m);

@@ -25,7 +25,7 @@ public:
 private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
-	void CreateRootSigAndPipelineState();
+	
 	void CreateGeometry();
 	void CreateMaterials();
 	void CreateLights();
@@ -35,14 +35,19 @@ private:
 	//     Component Object Model, which DirectX objects do
 	//  - More info here: https://github.com/Microsoft/DirectXTK/wiki/ComPtr
 
-	// Pipeline
+	/* --Rasterization Pipeline--
+	void CreateRootSigAndPipelineState();
+	
+	
 	Microsoft::WRL::ComPtr <ID3D12RootSignature > rootSignature;
-	Microsoft::WRL::ComPtr <ID3D12PipelineState > pipelineState;
+	Microsoft::WRL::ComPtr <ID3D12PipelineState > pipelineState;*/
+
 	// Geometry
 	Microsoft::WRL::ComPtr <ID3D12Resource > vertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW vbView{};
 	Microsoft::WRL::ComPtr <ID3D12Resource > indexBuffer;
 	D3D12_INDEX_BUFFER_VIEW ibView{};
+	
 	// Other graphics data
 	D3D12_VIEWPORT viewport{};
 	D3D12_RECT scissorRect{};

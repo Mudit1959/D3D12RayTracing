@@ -6,6 +6,11 @@ Entity::Entity(std::shared_ptr<Mesh> inMesh, std::shared_ptr<Material> inMateria
 	material = inMaterial;
 }
 
+Entity::Entity(std::shared_ptr<Mesh> inMesh) 
+{
+	mesh = inMesh;
+}
+
 void Entity::SetMaterial(std::shared_ptr<Material> m) { material = m; }
 
 std::shared_ptr<Mesh> Entity::GetMesh() { return mesh; }

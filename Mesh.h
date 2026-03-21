@@ -21,6 +21,12 @@
 * Refer to Game::Draw() to see the code necessary for setting buffers and drawing
 */
 
+struct MeshRayTracingData 
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE IndexBufferSRV{};
+	D3D12_GPU_DESCRIPTOR_HANDLE VertexBufferSRV{};
+	Microsoft::WRL::ComPtr<ID3D12Resource> BLAS;
+};
 
 using namespace DirectX;
 
@@ -52,6 +58,9 @@ public:
 	
 	int GetIndexCount();
 	int GetVertexCount();
+
+	// Ray-Tracing
+	const MeshRayTracingData& GetRayTracingData();
 	
 
 private:
@@ -62,6 +71,9 @@ private:
 
 	//Bindless
 	D3D12_GPU_DESCRIPTOR_HANDLE vbGPUDescriptorHandle;
+
+	// Ray-Tracing 
+	MeshRayTracingData rayTracingData;
 
 	const char* name;
 	int indexCount, vertexCount;

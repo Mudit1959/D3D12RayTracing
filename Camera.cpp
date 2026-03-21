@@ -31,6 +31,7 @@ void Camera::UpdateViewMatrix()
 DirectX::XMFLOAT4X4 Camera::GetProj() { return proj; }
 DirectX::XMFLOAT4X4 Camera::GetView() { return view; }
 
+
 void Camera::Update(float dt)
 {
 	if (Input::KeyDown('W')) { transform.MoveRelative(dt * movementSpeed, 0, 0); }

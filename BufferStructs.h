@@ -8,7 +8,6 @@
 // There are some pieces of data that remain the same across all objects -> position of camera (view), the camera's perspective (proj) - no point writing the same piece of data for each when it can be shared by all!
 // There are some that differ from object to object - the positions of each object differ (world, worldInv)
 
-
 struct VSConstantsAll 
 {
 	DirectX::XMFLOAT4X4 view;
@@ -56,4 +55,32 @@ struct DrawingIndices
 	unsigned int vsConstEachIndex;
 	unsigned int psConstAllIndex;
 	unsigned int psConstEachIndex;
+};
+
+// Ray Tracing Bindless Data 
+struct RayTracingDrawData 
+{
+	unsigned int SceneDataCBIndex;
+	unsigned int EntityDataDescriptorIndex;
+	unsigned int SceneTLASDescriptorIndex;
+	unsigned int OutputUAVDescriptorIndex;
+};
+
+// Ray Tracing Data for the entire scene -> The inverse view projection matrix and the camera world position
+struct RaytracingSceneData 
+{
+	DirectX::XMFLOAT4X4 InverseViewProjection;
+	DirectX::XMFLOAT3 CameraPosition;
+	float padding;
+};
+
+// Ray Tracing Data for bindless entities -> Need access to the index buffer VIEW, vertex buffer VIEW, and for now, the color of the entity
+struct EntityData 
+{
+	unsigned int IndexBufferViewIndex;
+	unsigned int VertexBufferViewIndex;
+	DirectX::XMFLOAT2 padding;
+
+	DirectX::XMFLOAT4 Color;
+
 };

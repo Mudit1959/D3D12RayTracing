@@ -1,5 +1,5 @@
 #include "Mesh.h"
-
+#include "RayTracing.h"
 
 Mesh::Mesh(const char* n, Vertex* v, int vCount, unsigned int* i, int iCount) : vbView{}, ibView {}
 {
@@ -307,6 +307,9 @@ void Mesh::CreateBuffers(Vertex* v, int vCount, unsigned int* i, int iCount)
 	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE; // ?
 	Graphics::Device->CreateShaderResourceView(vertexBuffer.Get(), &srvDesc, vbCPUHandle);
 
+	//Ray-Tracing 
+	rayTracingData = RayTracing::CreateBottomLevelAccelerationStructureForMesh(this);
+
 }
 
 
@@ -410,3 +413,6 @@ void Mesh::CalculateTangents(Vertex* verts, int numVerts, unsigned int* indices,
 		XMStoreFloat3(&verts[i].Tangent, tangent);
 	}
 }
+
+// Ray-Tracing
+const MeshRayTracingData& Mesh::GetRayTracingData() { return rayTracingData; }

@@ -29,6 +29,8 @@ public:
 		DirectX::XMFLOAT3 tint, 
 		DirectX::XMFLOAT2 UVScale = DirectX::XMFLOAT2(1,1),
 		DirectX::XMFLOAT2 UVOffset = DirectX::XMFLOAT2(0,0)); // pointer to first index of tint
+
+	Material(DirectX::XMFLOAT3 inTint);
 	
 	
 	DirectX::XMFLOAT3 GetTint();

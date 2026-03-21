@@ -16,6 +16,8 @@ Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> inPipelineState,
 {
 }
 
+Material::Material(DirectX::XMFLOAT3 inTint) :tint(inTint) {}
+
 DirectX::XMFLOAT3 Material::GetTint() { return tint; }
 DirectX::XMFLOAT2 Material::GetScale() { return scale; }
 DirectX::XMFLOAT2 Material::GetOffset() { return offset; }
