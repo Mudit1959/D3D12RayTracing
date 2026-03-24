@@ -39,9 +39,9 @@ Game::Game()
 
 	//CreateRootSigAndPipelineState();
 	CreateGeometry();
-	CreateLights();
+	//CreateLights();
 
-	camera = std::make_shared<Camera>(0, 0, -10.0f, Window::AspectRatio(), true);
+	camera = std::make_shared<Camera>(0, 8.0f, -10.0f, Window::AspectRatio(), true);
 }
 
 
@@ -62,6 +62,7 @@ Game::~Game()
 // --------------------------------------------------------
 void Game::CreateGeometry()
 {
+
 	CreateMaterials();
 	std::shared_ptr<Mesh> cube = std::make_shared<Mesh>("Cube", FixPath("../../Assets/Meshes/cube.obj").c_str());
 	std::shared_ptr<Mesh> cylinder = std::make_shared<Mesh>("Cylinder", FixPath("../../Assets/Meshes/cylinder.obj").c_str());
@@ -74,24 +75,31 @@ void Game::CreateGeometry()
 	entities.push_back(std::make_shared<Entity>(cube, grey)); // Land
 	entities.push_back(std::make_shared<Entity>(torus, white));
 
-	entities.push_back(std::make_shared<Entity>(sphere, red));
-	entities.push_back(std::make_shared<Entity>(sphere, purple));
-	entities.push_back(std::make_shared<Entity>(sphere, green));
-	entities.push_back(std::make_shared<Entity>(sphere, white));
-	entities.push_back(std::make_shared<Entity>(sphere, red));
+	for (int i = 0; i < 3; i++) 
+	{
+		entities.push_back(std::make_shared<Entity>(sphere, red));
+		entities.push_back(std::make_shared<Entity>(sphere, purple));
+		entities.push_back(std::make_shared<Entity>(sphere, green));
+		entities.push_back(std::make_shared<Entity>(sphere, white));
+		entities.push_back(std::make_shared<Entity>(sphere, red));
+	}
+	
 
 	
-	entities[0]->GetTransform()->SetScale(100, 5, 100);
-	entities[0]->GetTransform()->SetPosition(0, -5, 0);
+	entities[0]->GetTransform()->SetScale(100, 1, 100);
+	entities[0]->GetTransform()->SetPosition(0, -2, 0);
 
 	entities[1]->GetTransform()->SetPosition(0, 4, 0);
 
-	for (int i = 0; i < 5; i++) 
+	for (int i = 0; i < 15; i++) 
 	{
-		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-10, 10), 0, RandomRange(-10, 10));
-		entities[2 + i]->GetTransform()->SetScale(RandomRange(1, 7), RandomRange(1, 7), RandomRange(1, 7));
+		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-8, 8), 0, RandomRange(-8, 8));
+		float uniformScale = RandomRange(1, 7) * 0.25;
+		entities[2 + i]->GetTransform()->SetScale(uniformScale, uniformScale, uniformScale);
 	}
 
+	// -- CREATE THE DATA BUFFERS FOR EACH ENTITY'S UNIQUE DATA --
+	RayTracing::CreateEntityDataBuffer(entities);
 
 	// Ray-Tracing TLAS Creation
 	RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
@@ -105,7 +113,7 @@ void Game::CreateGeometry()
 void Game::CreateMaterials() 
 {
 	red = std::make_shared<Material>(DirectX::XMFLOAT3(196/255.0f, 47/255.0f, 10/255.0f));
-	grey = std::make_shared<Material>(DirectX::XMFLOAT3(247 / 255.0f, 245 / 255.0f, 245 / 255.0f));
+	grey = std::make_shared<Material>(DirectX::XMFLOAT3(187 / 255.0f, 180 / 255.0f, 180 / 255.0f));
 	purple = std::make_shared<Material>(DirectX::XMFLOAT3(162 / 255.0f, 94 / 255.0f, 235 / 255.0f));
 	green = std::make_shared<Material>(DirectX::XMFLOAT3(117 / 255.0f, 201 / 255.0f, 120 / 255.0f));
 	white = std::make_shared<Material>(DirectX::XMFLOAT3(247 / 255.0f, 245 / 255.0f, 245 / 255.0f));
@@ -197,15 +205,15 @@ void Game::Update(float deltaTime, float totalTime)
 	
 	//"auto& to meaningfully modify items in a sequence", such as a vector -> https://stackoverflow.com/questions/29859796/c-auto-vs-auto
 	entities[1]->GetTransform()->Rotate(0.5f * deltaTime,0.5f*deltaTime,0.5f*deltaTime);
-	for (int i = 0; i < 5; i++) 
+	for (int i = 0; i < 15; i++) 
 	{
 		if (i % 2 == 0)
 		{
-			entities[i + 2]->GetTransform()->MoveAbsolute(sin(deltaTime)/2.0f, 0, 0);
+			entities[i + 2]->GetTransform()->MoveAbsolute(sin(totalTime) * 0.0025 * 3, 0, 0);
 		}
 		else
 		{
-			entities[i + 2]->GetTransform()->MoveAbsolute(0, 0, sin(deltaTime) / 2.0f);
+			entities[i + 2]->GetTransform()->MoveAbsolute(0, 0, sin(totalTime + 1) * 0.0025f * 3);
 		}
 	}
 

@@ -64,7 +64,9 @@ namespace RayTracing
 	// Helpers for creating acceleration structures
 	MeshRayTracingData CreateBottomLevelAccelerationStructureForMesh(Mesh* mesh);
 	void CreateEntityDataBuffer(std::vector<std::shared_ptr<Entity>> sceneEntities);
+	void CreateEntityDataBuffer(std::shared_ptr<Entity> entity);
 	void CreateTopLevelAccelerationStructureForScene(std::vector<std::shared_ptr<Entity>> sceneEntities);
+	void CreateTopLevelAccelerationStructureForScene(std::shared_ptr<Entity> inEntity);
 
 	// Helper functions for each initalization step
 	void CreateRaytracingRootSignatures();

@@ -37,10 +37,14 @@ struct RaytracingSceneData
 
 struct EntityData // Needs to follow 16 byte packing rules
 {
-    unsigned int IndexBufferViewIndex;
-    unsigned int VertexBufferViewIndex;
-
     float4 Color;
+    
+    uint IndexBufferViewIndex;
+    uint VertexBufferViewIndex;
+    float padding[2];
+    
+    
+   
 };
 
 
@@ -133,15 +137,12 @@ void RayGen()
     
     ConstantBuffer<RaytracingSceneData> rd = ResourceDescriptorHeap[SceneDataCBIndex];
     
-    float3 CameraPosition = rd.CameraPosition;
-    float4x4 InverseViewProjection = rd.InverseViewProjection;
-    
 	// Calculate the ray from the camera through a particular
 	// pixel of the output buffer using this shader's indices
     RayDesc ray = CalcRayFromCamera(
 		rayIndices,
-		CameraPosition,
-		InverseViewProjection);
+		rd.CameraPosition,
+		rd.InverseViewProjection);
 
 	// Set up the payload for the ray
 	// This initializes the struct to all zeros
@@ -163,7 +164,7 @@ void RayGen()
 	// Set the final color of the buffer
     // RW - Read Write 
     RWTexture2D<float4> OutputColor = ResourceDescriptorHeap[OutputUAVDescriptorIndex];
-    OutputColor[rayIndices] = float4(payload.color, 1);
+    OutputColor[rayIndices] = float4(payload.color, 1); // Gamma correction
 }
 
 
@@ -193,5 +194,5 @@ void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes 
     StructuredBuffer<EntityData> b = ResourceDescriptorHeap[EntityDataDescriptorIndex];
     EntityData data = b[InstanceIndex()];
     
-    payload.color = data.Color.xyz;
+    payload.color = data.Color.rgb;
 }
