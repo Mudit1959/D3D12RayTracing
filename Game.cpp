@@ -35,13 +35,15 @@ float RandomRange(float min, float max)
 // --------------------------------------------------------
 Game::Game()
 {
+	srand((unsigned int)time(0));
+
 	RayTracing::Initialize(Window::Width(), Window::Height(), FixPath(L"RayTracing.cso"));
 
 	//CreateRootSigAndPipelineState();
 	CreateGeometry();
 	//CreateLights();
 
-	camera = std::make_shared<Camera>(0, 8.0f, -10.0f, Window::AspectRatio(), true);
+	camera = std::make_shared<Camera>(1.4, 3.0f, -16.0f, Window::AspectRatio(), true);
 }
 
 
@@ -86,16 +88,16 @@ void Game::CreateGeometry()
 	
 
 	
-	entities[0]->GetTransform()->SetScale(100, 1, 100);
-	entities[0]->GetTransform()->SetPosition(0, -2, 0);
+	entities[0]->GetTransform()->SetScale(50, 1, 50);
+	entities[0]->GetTransform()->SetPosition(0, 0, 0);
 
 	entities[1]->GetTransform()->SetPosition(0, 4, 0);
 
 	for (int i = 0; i < 15; i++) 
 	{
-		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-8, 8), 0, RandomRange(-8, 8));
-		float uniformScale = RandomRange(1, 7) * 0.25;
+		float uniformScale = RandomRange(0.5, 1);
 		entities[2 + i]->GetTransform()->SetScale(uniformScale, uniformScale, uniformScale);
+		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-10, 10), 2 - (1-uniformScale), RandomRange(-10, 10));
 	}
 
 	// -- CREATE THE DATA BUFFERS FOR EACH ENTITY'S UNIQUE DATA --
