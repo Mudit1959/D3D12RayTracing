@@ -14,6 +14,8 @@ struct Vertex
 struct RayPayload
 {
     float3 color;
+    uint RayPerPixel; // NOT Ray'S' -> Used to randomize bounce
+    uint RecursionDepth; // Need to keep track of the collision we're on
 };
 
 // Note: We'll be using the built-in BuiltInTriangleIntersectionAttributes struct
@@ -32,7 +34,12 @@ cbuffer DrawData : register(b0)
 struct RaytracingSceneData
 {
     float4x4 InverseViewProjection;
+    
     float3 CameraPosition;
+    uint RaysPerPixel; // How many rays should be launched for each pixel?
+    
+    uint SetRecursionDepth; // How many collisions should a ray go through
+    
 };
 
 struct EntityData // Needs to follow 16 byte packing rules
@@ -135,36 +142,57 @@ void RayGen()
 	// Get the ray indices
     uint2 rayIndices = DispatchRaysIndex().xy;
     
+    // Constant buffer needs to be accessed for scene level data - Inverse Projection matrix and Camera Position
     ConstantBuffer<RaytracingSceneData> rd = ResourceDescriptorHeap[SceneDataCBIndex];
     
-	// Calculate the ray from the camera through a particular
-	// pixel of the output buffer using this shader's indices
-    RayDesc ray = CalcRayFromCamera(
-		rayIndices,
-		rd.CameraPosition,
-		rd.InverseViewProjection);
-
-	// Set up the payload for the ray
-	// This initializes the struct to all zeros
-    RayPayload payload = (RayPayload) 0;
+    // -- PATH TRACER --
+    // Works on the principle of launching several rays, that each continue on for a few collisions, before returning back an answer. 
+    // Average the data returned by the rays to get a color. 
     
-    RaytracingAccelerationStructure SceneTLAS = ResourceDescriptorHeap[SceneTLASDescriptorIndex];
+    // For averaging, first need to store the sum of the colors returned
+    float3 totalColor = float3(0, 0, 0);
+    
+    // For each pixel launch several rays
+    for (int i = 0; i < rd.RaysPerPixel; i++)
+    {
+        float2 adjustedIndices = (float2) rayIndices;
+        float2 ray01 = (float) i / rd.RaysPerPixel;
+        adjustedIndices += rand2(rayIndices.xy * ray01);
+        
+        // Calculate the ray from the camera through a particular
+        // pixel of the output buffer using this shader's indices
+            RayDesc ray = CalcRayFromCamera(
+	        rayIndices,
+	        rd.CameraPosition,
+	        rd.InverseViewProjection);
 
-	// Perform the ray trace for this ray
-    TraceRay(
-		SceneTLAS,
-		RAY_FLAG_NONE,
-		0xFF,
-		0,
-		0,
-		0,
-		ray,
-		payload);
+        // Set up the payload for the ray
+        // This initializes the struct to all zeros
+        RayPayload payload = (RayPayload) 0;
+        payload.color = float3(1, 1, 1);
+        payload.RayPerPixel = i;
+        payload.RecursionDepth = 0;
+        
+        RaytracingAccelerationStructure SceneTLAS = ResourceDescriptorHeap[SceneTLASDescriptorIndex];
+
+        // Perform the ray trace for this ray
+            TraceRay(
+	        SceneTLAS,
+	        RAY_FLAG_NONE,
+	        0xFF,
+	        0,0,0,
+	        ray,
+	        payload);
+        
+        totalColor += payload.color;
+    }
+    
+	
 
 	// Set the final color of the buffer
     // RW - Read Write 
     RWTexture2D<float4> OutputColor = ResourceDescriptorHeap[OutputUAVDescriptorIndex];
-    OutputColor[rayIndices] = float4(payload.color, 1); // Gamma correction
+    OutputColor[rayIndices] = float4(pow(totalColor/rd.RaysPerPixel, 1.0/2.2f), 1); // Gamma correction
 }
 
 
@@ -172,9 +200,28 @@ void RayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-	// Nothing was hit, so return black for now.
+	// Nothing was hit, so return any color for now.
 	// Ideally this is where we would do skybox stuff!
-    payload.color = float3(0.4f, 0.6f, 0.75f);
+    //payload.color = float3(0.4f, 0.6f, 0.75f);
+    
+    // --- Taken from Chris Cascioli - LINEAR Hemispheric gradient ---
+    
+    // Define the top and bottom colors of the hemisphere
+    float3 topColor = float3(0.3f, 0.5f, 0.95f);
+    float3 bottomColor = float3(1, 1, 1);
+    
+    // Dot product to achieve a gradient
+    // Dot product is a projection of one vector onto another - cos of the angle between the vectors
+    // If it's looking to the horizon - angle is 0 - cos is 1
+    // Perpendicular/Straight up - angle is 90 - cos is 0
+    float interp = dot(normalize(WorldRayDirection()), float3(0, 1, 0));
+    
+    // Lerp can be used for float3 as well!
+    // First the bottom 
+    float3 skyColor = lerp(bottomColor, topColor, interp);
+    
+    payloadColor *= skyColor;
+
 }
 
 
@@ -191,8 +238,44 @@ void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes 
 	// Note: Here is where we would do actual shading!
     payload.color = interpolatedVert.normal;*/
     
+    // Fetch the recursion depth from constant buffer
+    ConstantBuffer<RaytracingSceneData> rd = ResourceDescriptorHeap[SceneDataCBIndex];
+    
+    // If a ray has just been bouncing between two objects, that part is in shadow
+    if (payload.RecursionDepth == rd.SetRecursionDepth)
+    {
+        payload.color = float3(0, 0, 0);
+        return;
+    }
+    
+    // What has the ray hit?
     StructuredBuffer<EntityData> b = ResourceDescriptorHeap[EntityDataDescriptorIndex];
     EntityData data = b[InstanceIndex()];
     
-    payload.color = data.Color.rgb;
+    // How is the color of the ray affected now?
+    payload.color *= data.Color.rgb;
+    
+    // Get the exact hit point
+    // Done by finding the triangle hit, and interpolating between vertices to get a point within the triangle
+    Vertex hit = InterpolateVertices(
+		PrimitiveIndex(),
+		hitAttributes.barycentrics);
+    // The normal is required for generating the next ray!
+    // Needs to be converted to world space
+    // Just need a 3x3 matrix since we're working with a 3 dimensional vector
+    float3 normal_WS = normalize(mul(hit.normal, (float3x3) ObjectToWorld4x3()));
+    
+    // -- GENERATE A RANDOM DIRECTION --
+    // To prevent generating the same results when calling random
+    // Need to create a unique ID for this ray
+    // Done using the recursion depth, the uv value of the pixel on screen(0-1), and knowing which ray number is being traced
+    
+    float2 pixelUV = (float2) (DispatchRaysIndex().xy / DispatchRaysDimensions().xy);
+    // Add 1 to recursion depth, because we always begin at 0 -> can't have pixelUV be 0,0!
+    // RayTCurrent() -> the scalar value multiplied by the ray direction to get the hit point?
+    float2 rng = rand2(pixelUV * (payload.RecursionDepth + 1) + payload.RayPerPixel + RayTCurrent());
+    
+    
+    
+    //payload.color = data.Color.rgb;
 }

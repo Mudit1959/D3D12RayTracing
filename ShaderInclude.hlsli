@@ -35,6 +35,24 @@ float random(float2 s)
     return frac(sin(dot(s, float2(12.9898, 78.233))) * 43758.5453123);
 }
 
+/// Returns a random vector 2
+float2 random2(float2 uv)
+{
+    return float2(random(uv), random(uv.yx));
+
+}
+
+// Returns a random vector within a hemisphere
+float3 RandomCosineWeightedHemisphere(float u0, float u1, float3 unitNormal)
+{
+    float a = u0 * 2 - 1;
+    float b = sqrt(1 - a * a);
+    float phi = 2.0f * PI * u1;
+    float x = unitNormal.x + b * cos(phi);
+    float y = unitNormal.y + b * sin(phi);
+    float z = unitNormal.z + a;
+    return float3(x, y, z);
+}
 
 
 // -- LIGHTING -- //
