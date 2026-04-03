@@ -151,7 +151,7 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 	//       need to refer to others by address, and a vector resizing causes
 	//       the underlying array to be recreated (so addresses are invalidated)
 	std::vector<D3D12_STATE_SUBOBJECT> subobjects;
-	subobjects.reserve(8);
+	subobjects.reserve(9); // 8 + 1 for emmissive hit group
 
 	// === Ray generation shader ===
 	D3D12_EXPORT_DESC rayGenExportDesc = {};
@@ -187,16 +187,18 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 
 	subobjects.push_back(missSubObj);
 
-	// === Closest hit shader ===
-	D3D12_EXPORT_DESC closestHitExportDesc = {};
-	closestHitExportDesc.Name = L"ClosestHit";
-	closestHitExportDesc.Flags = D3D12_EXPORT_FLAG_NONE;
+	// === Closest hit shaders ===
+	D3D12_EXPORT_DESC closestHitExportDesc[2] = {};
+	closestHitExportDesc[0].Name = L"ClosestHit";
+	closestHitExportDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
+	closestHitExportDesc[1].Name = L"ClosestHitEmmissive";
+	closestHitExportDesc[1].Flags = D3D12_EXPORT_FLAG_NONE;
 
 	D3D12_DXIL_LIBRARY_DESC	closestHitLibDesc = {};
 	closestHitLibDesc.DXILLibrary.BytecodeLength = blob->GetBufferSize();
 	closestHitLibDesc.DXILLibrary.pShaderBytecode = blob->GetBufferPointer();
-	closestHitLibDesc.NumExports = 1;
-	closestHitLibDesc.pExports = &closestHitExportDesc;
+	closestHitLibDesc.NumExports = ARRAYSIZE(closestHitExportDesc);
+	closestHitLibDesc.pExports = closestHitExportDesc;
 
 	D3D12_STATE_SUBOBJECT closestHitSubObj = {};
 	closestHitSubObj.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
@@ -216,6 +218,17 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 
 	subobjects.push_back(hitGroup);
 
+	// === Emmissive Hit group ===
+	D3D12_HIT_GROUP_DESC hitGroupEmmissiveDesc = {};
+	hitGroupEmmissiveDesc.ClosestHitShaderImport = L"ClosestHitEmmissive";
+	hitGroupEmmissiveDesc.HitGroupExport = L"HitGroupEmmissive";
+
+	D3D12_STATE_SUBOBJECT hitGroupEmmissive = {};
+	hitGroupEmmissive.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
+	hitGroupEmmissive.pDesc = &hitGroupEmmissiveDesc;
+
+	subobjects.push_back(hitGroupEmmissive);
+
 	// === Shader config (payload) ===
 	D3D12_RAYTRACING_SHADER_CONFIG shaderConfigDesc = {};
 	shaderConfigDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT3) + (sizeof(unsigned int) * 2);	// Payload will carry a color, the number of rays per pixel, and the recursion depth
@@ -229,12 +242,12 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 
 	// === Association - Payload and shaders ===
 	// Names of shaders that use the payload
-	const wchar_t* payloadShaderNames[] = { L"RayGen", L"Miss", L"HitGroup" };
+	const wchar_t* payloadShaderNames[] = { L"RayGen", L"Miss", L"HitGroup", L"HitGroupEmmissive" };
 
 	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION shaderPayloadAssociation = {};
 	shaderPayloadAssociation.NumExports = ARRAYSIZE(payloadShaderNames);
 	shaderPayloadAssociation.pExports = payloadShaderNames;
-	shaderPayloadAssociation.pSubobjectToAssociate = &subobjects[4]; // Payload config above!
+	shaderPayloadAssociation.pSubobjectToAssociate = &subobjects[5]; // Payload config above!
 
 	D3D12_STATE_SUBOBJECT shaderPayloadAssociationObject = {};
 	shaderPayloadAssociationObject.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
@@ -290,7 +303,7 @@ void RayTracing::CreateShaderTables()
 	// How many of each type of shader?
 	UINT64 rayGenCount = 1;
 	UINT64 missCount = 1;
-	UINT64 hitGroupCount = 1;
+	UINT64 hitGroupCount = 2;
 
 	// Ray Gen Table setup
 	{
@@ -305,7 +318,8 @@ void RayTracing::CreateShaderTables()
 			D3D12_HEAP_TYPE_UPLOAD,
 			D3D12_RESOURCE_STATE_GENERIC_READ);
 
-		// Map and memcpy the shader ID into the table (assuming just 1 entry)
+		// Map and memcpy the shader ID into the table 
+		// Assuming only 1 entry
 		unsigned char* addr = 0;
 		RayGenTable->Map(0, 0, (void**)&addr);
 		memcpy(
@@ -338,7 +352,8 @@ void RayTracing::CreateShaderTables()
 		MissTable->Unmap(0, 0);
 	}
 
-	// Hit Group Table
+	// Hit Group Table 
+	// Using both non emmissive and emmissive
 	{
 		// Calculate the overall size
 		hitGroupRecordSize =
@@ -359,6 +374,13 @@ void RayTracing::CreateShaderTables()
 		memcpy(
 			addr,
 			RaytracingPipelineProperties->GetShaderIdentifier(L"HitGroup"),
+			D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+
+		addr += hitGroupRecordSize;
+
+		memcpy(
+			addr,
+			RaytracingPipelineProperties->GetShaderIdentifier(L"HitGroupEmmissive"),
 			D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		HitGroupTable->Unmap(0, 0);
 	}
@@ -563,7 +585,7 @@ void RayTracing::CreateEntityDataBuffer(std::vector<std::shared_ptr<Entity>> sce
 		// Set up this entity's data
 		EntityData data{};
 		XMFLOAT3 c = sceneEntities[i]->GetMaterial()->GetTint();
-		data.Color = XMFLOAT4(c.x, c.y, c.z, 1);
+		data.ColorRoughness = XMFLOAT4(c.x, c.y, c.z, sceneEntities[i]->GetMaterial()->GetRoughness());
 		data.IndexBufferViewIndex = Graphics::GetDescriptorIndex(sceneEntities[i]->GetMesh()->GetRayTracingData().IndexBufferSRV);
 		data.VertexBufferViewIndex = Graphics::GetDescriptorIndex(sceneEntities[i]->GetMesh()->GetRayTracingData().VertexBufferSRV);
 
@@ -604,7 +626,7 @@ void RayTracing::CreateEntityDataBuffer(std::shared_ptr<Entity> entity)
 	// Set up this entity's data
 	EntityData data{};
 	XMFLOAT3 c = entity->GetMaterial()->GetTint();
-	data.Color = XMFLOAT4(c.x, c.y, c.z, 1);
+	data.ColorRoughness = XMFLOAT4(c.x, c.y, c.z, entity->GetMaterial()->GetRoughness());
 	data.IndexBufferViewIndex = Graphics::GetDescriptorIndex(entity->GetMesh()->GetRayTracingData().IndexBufferSRV);
 	data.VertexBufferViewIndex = Graphics::GetDescriptorIndex(entity->GetMesh()->GetRayTracingData().VertexBufferSRV);
 
@@ -660,7 +682,7 @@ void RayTracing::CreateTopLevelAccelerationStructureForScene(std::vector<std::sh
 		// Describe the BLAS instance(s) that make up the TLAS
 		D3D12_RAYTRACING_INSTANCE_DESC instanceDesc{};
 		instanceDesc.InstanceID = 0;
-		instanceDesc.InstanceContributionToHitGroupIndex = 0;
+		instanceDesc.InstanceContributionToHitGroupIndex = sceneEntities[i]->GetMaterial()->GetEmmissive() ? 1 : 0;
 		instanceDesc.InstanceMask = 0xFF;
 		memcpy(&instanceDesc.Transform, &transform, sizeof(float) * 3 * 4); // Copy first [3][4] elements
 		instanceDesc.AccelerationStructure = sceneEntities[i]->GetMesh()->GetRayTracingData().BLAS->GetGPUVirtualAddress();
@@ -782,7 +804,7 @@ void RayTracing::CreateTopLevelAccelerationStructureForScene(std::shared_ptr<Ent
 	// in the shader table.  The index buffer SRV of this entity's mesh must
 	// be manually copied to the appropriate location in the table.
 	//
-	// This code assumes there is exactly 1 hit group in the table
+	// Using both non-emmissive and emmissive shaders
 	D3D12_GPU_DESCRIPTOR_HANDLE indexBufferSRV = entity->GetMesh()->GetRayTracingData().IndexBufferSRV;
 	unsigned char* addr;
 	HitGroupTable->Map(0, 0, reinterpret_cast<void**>(&addr));
@@ -915,7 +937,7 @@ void RayTracing::CreateTopLevelAccelerationStructureForScene(std::shared_ptr<Ent
 // --------------------------------------------------------
 // Performs the actual raytracing work
 // --------------------------------------------------------
-void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer)
+void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer, unsigned int RaysPerPixel, unsigned int SetRecursionDepth)
 {
 	if (!dxrResourcesInitialized || !dxrAvailable)
 		return;
@@ -941,6 +963,8 @@ void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr
 	// Grab and fill a constant buffer
 	RaytracingSceneData sceneData = {};
 	sceneData.CameraPosition = camera->GetPos();
+	sceneData.RecursionDepth = SetRecursionDepth;
+	sceneData.RaysPerPixel = RaysPerPixel;
 
 	DirectX::XMFLOAT4X4 view = camera->GetView();
 	DirectX::XMFLOAT4X4 proj = camera->GetProj();

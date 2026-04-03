@@ -75,16 +75,16 @@ struct RaytracingSceneData
 	unsigned int RaysPerPixel;
 
 	unsigned int RecursionDepth;
+	float padding[3];
 
 };
 
 // Ray Tracing Data for bindless entities -> Need access to the index buffer VIEW, vertex buffer VIEW, and for now, the color of the entity
 struct EntityData 
 {
-	DirectX::XMFLOAT4 Color;
+	DirectX::XMFLOAT4 ColorRoughness;
 
 	unsigned int IndexBufferViewIndex;
 	unsigned int VertexBufferViewIndex;
-	float padding[2];
-
+	float padding[2]; // Forgot padding here!
 };

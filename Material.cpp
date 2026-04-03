@@ -1,7 +1,7 @@
 #include "Material.h"
 
 Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> inPipelineState,
-	DirectX::XMFLOAT3 inTint,
+	DirectX::XMFLOAT3 inTint, float inRough, unsigned int isEmmissive,
 	DirectX::XMFLOAT2 UVScale,
 	DirectX::XMFLOAT2 UVOffset) :
 
@@ -9,6 +9,8 @@ Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> inPipelineState,
 	tint(inTint),
 	scale(UVScale),
 	offset(UVOffset),
+	roughness(inRough),
+	emmissive(isEmmissive),
 	albedoIndex(-1),
 	normalMapIndex(-1),
 	roughnessIndex(-1),
@@ -16,7 +18,17 @@ Material::Material(Microsoft::WRL::ComPtr<ID3D12PipelineState> inPipelineState,
 {
 }
 
-Material::Material(DirectX::XMFLOAT3 inTint) :tint(inTint) {}
+Material::Material(DirectX::XMFLOAT3 inTint, float inRough, unsigned int isEmmissive) :
+	tint(inTint), roughness(inRough), emmissive(isEmmissive),
+albedoIndex(-1),
+normalMapIndex(-1),
+roughnessIndex(-1),
+metalnessIndex(-1),
+scale(DirectX::XMFLOAT2(0,0)),
+offset(DirectX::XMFLOAT2(0,0))
+{}
+
+float Material::GetRoughness() { return roughness; }
 
 DirectX::XMFLOAT3 Material::GetTint() { return tint; }
 DirectX::XMFLOAT2 Material::GetScale() { return scale; }
@@ -25,6 +37,7 @@ unsigned int Material::GetAlbedoIndex() { return albedoIndex; }
 unsigned int Material::GetNormalMapIndex() { return normalMapIndex; }
 unsigned int Material::GetRoughnessIndex() { return roughnessIndex; }
 unsigned int Material::GetMetalnessIndex() { return metalnessIndex; }
+unsigned int Material::GetEmmissive() { return emmissive; }
 
 Microsoft::WRL::ComPtr<ID3D12PipelineState> Material::GetPipelineState() { return pipelineState; }
 void Material::SetPipelineState(Microsoft::WRL::ComPtr<ID3D12PipelineState> p) { pipelineState = p; }

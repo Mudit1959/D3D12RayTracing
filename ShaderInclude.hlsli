@@ -1,5 +1,4 @@
-
-
+#define PI 3.141592654f
 
 // -- Struct representing the data we're sending down the pipeline from VS to PS --
 // - Should match our pixel shader's input (hence the name: Vertex to Pixel)
@@ -59,7 +58,7 @@ float3 RandomCosineWeightedHemisphere(float u0, float u1, float3 unitNormal)
 #define MAX_LIGHTS 128
 #define MAX_SPECULAR_EXPONENT 256.0f
 #define MIN_ROUGHNESS 0.0000001f
-#define PI 3.1415926535897932384626433832795
+
 #define LIGHT_TYPE_DIRECTIONAL 0
 #define LIGHT_TYPE_POINT 1
 #define LIGHT_TYPE_SPOT 2

@@ -76,8 +76,8 @@ void Game::CreateGeometry()
 
 	entities.push_back(std::make_shared<Entity>(cube, grey)); // Land
 	entities.push_back(std::make_shared<Entity>(torus, white));
-
-	for (int i = 0; i < 3; i++) 
+	
+	for (int i = 0; i < 1; i++) 
 	{
 		entities.push_back(std::make_shared<Entity>(sphere, red));
 		entities.push_back(std::make_shared<Entity>(sphere, purple));
@@ -86,19 +86,21 @@ void Game::CreateGeometry()
 		entities.push_back(std::make_shared<Entity>(sphere, red));
 	}
 	
+	
 
 	
 	entities[0]->GetTransform()->SetScale(50, 1, 50);
 	entities[0]->GetTransform()->SetPosition(0, 0, 0);
 
 	entities[1]->GetTransform()->SetPosition(0, 4, 0);
-
-	for (int i = 0; i < 15; i++) 
+	
+	for (int i = 0; i < 5; i++) 
 	{
 		float uniformScale = RandomRange(0.5, 1);
 		entities[2 + i]->GetTransform()->SetScale(uniformScale, uniformScale, uniformScale);
-		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-10, 10), 2 - (1-uniformScale), RandomRange(-10, 10));
+		entities[2 + i]->GetTransform()->SetPosition(RandomRange(-5, 5), 2 - (1-uniformScale), RandomRange(-5, 5));
 	}
+	
 
 	// -- CREATE THE DATA BUFFERS FOR EACH ENTITY'S UNIQUE DATA --
 	RayTracing::CreateEntityDataBuffer(entities);
@@ -114,11 +116,11 @@ void Game::CreateGeometry()
 
 void Game::CreateMaterials() 
 {
-	red = std::make_shared<Material>(DirectX::XMFLOAT3(196/255.0f, 47/255.0f, 10/255.0f));
-	grey = std::make_shared<Material>(DirectX::XMFLOAT3(187 / 255.0f, 180 / 255.0f, 180 / 255.0f));
-	purple = std::make_shared<Material>(DirectX::XMFLOAT3(162 / 255.0f, 94 / 255.0f, 235 / 255.0f));
-	green = std::make_shared<Material>(DirectX::XMFLOAT3(117 / 255.0f, 201 / 255.0f, 120 / 255.0f));
-	white = std::make_shared<Material>(DirectX::XMFLOAT3(247 / 255.0f, 245 / 255.0f, 245 / 255.0f));
+	red = std::make_shared<Material>(DirectX::XMFLOAT3(196/255.0f, 0/255.0f, 0/255.0f), 0.0f, 0); // Reflective red
+	grey = std::make_shared<Material>(DirectX::XMFLOAT3(187 / 255.0f, 180 / 255.0f, 180 / 255.0f), 1.0f, 0); // Diffuse Grey
+	purple = std::make_shared<Material>(DirectX::XMFLOAT3(162 / 255.0f, 94 / 255.0f, 235 / 255.0f), 1.0f, 1); // Diffuse Purple
+	green = std::make_shared<Material>(DirectX::XMFLOAT3(117 / 255.0f, 201 / 255.0f, 120 / 255.0f), 1.0f, 0); // Diffuse Green
+	white = std::make_shared<Material>(DirectX::XMFLOAT3(247 / 255.0f, 245 / 255.0f, 245 / 255.0f), 0.0f, 0); // Reflective White
 }
 
 
@@ -207,18 +209,18 @@ void Game::Update(float deltaTime, float totalTime)
 	
 	//"auto& to meaningfully modify items in a sequence", such as a vector -> https://stackoverflow.com/questions/29859796/c-auto-vs-auto
 	entities[1]->GetTransform()->Rotate(0.5f * deltaTime,0.5f*deltaTime,0.5f*deltaTime);
-	for (int i = 0; i < 15; i++) 
+	for (int i = 0; i < 5; i++)
 	{
 		if (i % 2 == 0)
 		{
-			entities[i + 2]->GetTransform()->MoveAbsolute(sin(totalTime) * 0.0025 * 3, 0, 0);
+			entities[i + 2]->GetTransform()->MoveAbsolute(sin(totalTime) * 0.025 * 3, 0, 0);
 		}
 		else
 		{
-			entities[i + 2]->GetTransform()->MoveAbsolute(0, 0, sin(totalTime + 1) * 0.0025f * 3);
+			entities[i + 2]->GetTransform()->MoveAbsolute(0, 0, sin(totalTime + 1) * 0.025f * 3);
 		}
 	}
-
+	
 	
 }
 
@@ -247,13 +249,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Raytracing - Recreate the TLAS and then trace it
 		{
 			RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
-			RayTracing::Raytrace(camera, currentBackBuffer);
+			RayTracing::Raytrace(camera, currentBackBuffer, 30, 10);
 		}
 
 		// Present
 		{
 			// Must occur BEFORE present
 			Graphics::CloseAndExecuteCommandList();
+			Graphics::WaitForGPU();
 			// Present the current back buffer and move to the next one
 			bool vsync = Graphics::VsyncState();
 			Graphics::SwapChain->Present(
@@ -262,11 +265,14 @@ void Game::Draw(float deltaTime, float totalTime)
 			Graphics::AdvanceSwapChainIndex(); // Always two buffers are needed - one to calculate rendering on, one to present to the user
 			// Waits for the GPU to be done -> Handled by multi-frame sync in AdvanceSwapChainIndex()!
 			// Resets the command list & allocator
-			// Graphics::WaitForGPU();
+			//
+			
 			Graphics::ResetAllocatorAndCommandList(Graphics::SwapChainIndex());
 		}
 	}
 }
+
+
 	
 
 
